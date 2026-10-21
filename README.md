@@ -114,7 +114,7 @@ Use `@functions_framework.http`, or Firebase's `@https_fn.on_request` / `@https_
 Use Firebase's `@scheduler_fn.on_schedule(schedule=..., timezone=...)`. It's the standard way to declare a schedule in
 Python code, and the one `firebase deploy` reads. miniFaaS reads it the same way.
 
-- **Schedule:** 5-field cron (`"30 9 * * 1-5"`), `"every N minutes"`, `"every N hours"` or `"every day HH:MM"`.
+- **Schedule:** 5-field cron (`"30 9 * * 1-5"`, weekdays numbered as in unix cron: `0` or `7` is Sunday, `1` is Monday), `"every N minutes"`, `"every N hours"` or `"every day HH:MM"`.
 - **Time zone:** taken from the decorator. Without one, the default is `MINIFAAS_TIMEZONE`.
 - **How a run happens:** miniFaaS calls the function the way Cloud Scheduler does, so `event.schedule_time` and
   `event.job_name` are set.
