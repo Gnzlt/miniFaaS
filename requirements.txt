@@ -1,0 +1,6 @@
+# The supervisor's dependencies, installed into the image. Functions never see these: each release
+# gets its own venv with only its requirements plus functions-framework.
+starlette>=0.41,<2.0
+uvicorn>=0.30,<1.0
+apscheduler>=3.10,<4.0
+pydantic-settings>=2.0,<3.0

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>miniFaaS</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6fdf'/%3E%3Cpath d='M18 4 8 18h7l-2 10 10-14h-7z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#/">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M18 4 8 18h7l-2 10 10-14h-7z"/></svg>
+      miniFaaS
+      <span class="version" id="version"></span>
+    </a>
+    <nav>
+      <a href="#/" data-tab="functions">Functions</a>
+      <a href="#/logs" data-tab="logs">Logs</a>
+      <a href="#/deploys" data-tab="deploys">Deploys</a>
+      <a href="#/env" data-tab="env">Environment</a>
+      <a href="#/settings" data-tab="settings">Settings</a>
+    </nav>
+  </header>
+
+  <main id="view" aria-live="polite"></main>
+
+  <dialog id="dialog">
+    <form method="dialog" class="dialog-head">
+      <h2 id="dialog-title"></h2>
+      <button class="icon" aria-label="Close">✕</button>
+    </form>
+    <div id="dialog-body"></div>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

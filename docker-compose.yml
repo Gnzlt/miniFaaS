@@ -1,0 +1,28 @@
+services:
+  minifaas:
+    image: ghcr.io/gnzlt/minifaas:latest   # or pin a release line, such as :0.1
+    # build: .   # or build it here instead of pulling
+    container_name: minifaas
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # functions: http://<host>:8080/<name>
+      - "8081:8081"   # dashboard and setup wizard: no login, so never forward this port to the internet
+    volumes:
+      # Required: settings (config.json), builds and run history live here.
+      - minifaas-data:/data
+      # A Google service account for firebase_admin (Firestore, Storage), if your functions use one:
+      # - ./service-account.json:/secrets/service-account.json:ro
+    # That's all: open http://<host>:8081 and the setup wizard asks for the repository.
+    #
+    # Or configure with env vars instead. Each one overrides the same setting from the wizard,
+    # and shows as locked on the Settings page.
+    # environment:
+    #   - MINIFAAS_GIT_URL=https://github.com/you/your-functions.git
+    #   - MINIFAAS_GIT_BRANCH=main
+    #   - MINIFAAS_GIT_TOKEN=github_pat_xxx   # never passed to functions
+    #   - MINIFAAS_TIMEZONE=UTC
+    #   # Anything without the MINIFAAS_ prefix reaches your functions as-is:
+    #   - GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json
+
+volumes:
+  minifaas-data:

@@ -1,0 +1,123 @@
+name: Docker image
+
+# Every push and pull request builds the image and smoke-tests it; nothing is published.
+# A vX.Y.Z tag also publishes it to GitHub Container Registry as ghcr.io/gnzlt/minifaas
+# (X.Y.Z, X.Y, and latest; X too from 1.0) and creates the GitHub Release from CHANGELOG.md.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore: ["**.md", "examples/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/gnzlt/minifaas
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A tag must name the version the code reports, or the image would say one thing and be called another.
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/minifaas/__init__.py)
+          test -n "$version"
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match __version__ $version" >&2
+            exit 1
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # The image the smoke tests run against, built for this runner only.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: minifaas:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image must deploy a real repo: this one's plain example, cloned with the job's token.
+      - name: Smoke test
+        env:
+          MINIFAAS_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run -d --name smoke -p 8080:8080 -p 8081:8081 \
+            -e MINIFAAS_GIT_URL=${{ github.server_url }}/${{ github.repository }}.git \
+            -e MINIFAAS_GIT_TOKEN \
+            -e MINIFAAS_SOURCE_ROOT=examples/functions-framework \
+            minifaas:test
+          for i in $(seq 1 60); do
+            curl -fsS localhost:8081/api/status | grep -q '"status":"running"' && break
+            sleep 3
+          done
+          docker logs smoke | tail -20
+          curl -fsS localhost:8081/api/status | grep -q '"status":"running"'
+          test "$(curl -fsS localhost:8080/ping)" = pong
+
+      # With no settings at all it must stay up, healthy, and waiting in the setup wizard.
+      - name: Smoke test (first run, unconfigured)
+        run: |
+          docker run -d --name fresh -p 9081:8081 -v fresh-data:/data minifaas:test
+          for i in $(seq 1 20); do curl -fsS localhost:9081/api/status && break; sleep 1; done
+          curl -fsS localhost:9081/api/status | grep -q '"configured":false'
+          curl -fsS localhost:9081/api/status | grep -q '"data_volume":true'
+          curl -fsS localhost:9081/api/health
+
+      - uses: docker/login-action@v3
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only a release tag names an image. A prerelease (v0.2.0-rc.1) gets its own tag and never `latest`.
+      - id: meta
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      # amd64 and arm64, so it runs on x86 and ARM hosts. The amd64 layers come from the cache above.
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v v="$version" '/^## \[/ { on = index($0, "[" v "]") > 0; next } on' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for $version" >&2; exit 1; }
+          case "$version" in *-*) pre=--prerelease ;; *) pre= ;; esac
+          gh release create "$GITHUB_REF_NAME" --title "miniFaaS $version" --notes-file notes.md $pre
